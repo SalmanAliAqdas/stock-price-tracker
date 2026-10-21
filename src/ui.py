@@ -8,7 +8,7 @@ from html import escape
 import streamlit as st
 
 from src.data_provider import Quote
-from src.utils import compact_number, currency_label, format_price, validate_dates, validate_ticker
+from src.utils import compact_number, currency_label, format_price, format_quote_timestamp, validate_dates, validate_ticker
 from src.watchlist import add_symbol
 
 PLOT_CONFIG = {"displaylogo": False, "scrollZoom": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
@@ -22,6 +22,9 @@ def today() -> date:
 def initialize_session() -> None:
     st.session_state.setdefault("selected_symbol", "AAPL")
     st.session_state.setdefault("watchlist", [])
+    st.session_state.setdefault("psx_watchlist", [])
+    st.session_state.setdefault("psx_selected_symbol", "OGDC")
+    st.session_state.setdefault("portfolio", [])
 
 
 def apply_styles() -> None:
@@ -62,14 +65,14 @@ def note(title: str, description: str) -> None:
 
 
 def footer() -> None:
-    st.html('<div class="atlas-footer">MARKET ATLAS &nbsp; / &nbsp; Research with perspective.<br>Yahoo Finance via yfinance · Data may be delayed or unavailable. For education only; not investment advice.</div>')
+    st.html('<div class="atlas-footer">MARKET ATLAS &nbsp; / &nbsp; Research with perspective.<br>Data sources are shown with quotes · Data may be delayed or unavailable. For education only; not investment advice.</div>')
 
 
 def ticker_search(key: str) -> str:
     with st.form(f"{key}_search"):
         left, right = st.columns([4, 1], vertical_alignment="bottom")
         with left:
-            raw = st.text_input("Stock symbol", value=st.session_state["selected_symbol"], placeholder="AAPL, MSFT, BRK-B…", key=f"{key}_ticker", max_chars=20)
+            raw = st.text_input("Stock symbol", value=st.session_state["selected_symbol"], placeholder="AAPL, MSFT, BRK-B…", key=f"{key}_ticker", max_chars=32)
         with right:
             submitted = st.form_submit_button("Search", type="primary", width="stretch", icon=":material/search:")
     if submitted:
@@ -110,11 +113,8 @@ def company_heading(symbol: str, name: str, currency: str | None, exchange: str 
 
 
 def quote_caption(quote: Quote) -> None:
-    if quote.timestamp_is_exact:
-        when = quote.timestamp.strftime("%d %b %Y, %H:%M:%S UTC")
-    else:
-        when = quote.timestamp.strftime("Session date: %d %b %Y") + " · exact quote time unavailable"
-    st.caption(f"{quote.source_label} · {when}")
+    when = format_quote_timestamp(quote.timestamp, quote.timestamp_is_exact)
+    st.caption(f"{quote.data_source} · {quote.source_label} · {when}")
 
 
 def quote_metrics(quote: Quote, market_cap: float | None = None) -> None:

@@ -17,6 +17,8 @@ page = st.navigation([
     st.Page("pages/1_Stock_Analysis.py", title="Stock Analysis", icon=":material/candlestick_chart:"),
     st.Page("pages/2_Stock_Comparison.py", title="Stock Comparison", icon=":material/compare_arrows:"),
     st.Page("pages/3_Watchlist.py", title="Watchlist", icon=":material/bookmarks:"),
+    st.Page("pages/5_Pakistan_Stock_Exchange.py", title="Pakistan Stock Exchange", icon=":material/public:"),
+    st.Page("pages/6_Portfolio.py", title="Portfolio Calculator", icon=":material/account_balance_wallet:"),
     st.Page("pages/4_About.py", title="About & Help", icon=":material/help_outline:"),
 ], position="sidebar")
 
@@ -25,8 +27,9 @@ with st.sidebar:
     st.caption("YOUR WORKSPACE")
     st.write(f"Following **{st.session_state['selected_symbol']}**")
     st.caption(f"{len(st.session_state['watchlist'])} stocks in your session watchlist")
+    st.caption(f"{len(st.session_state['psx_watchlist'])} Pakistan stocks · {len(st.session_state['portfolio'])} portfolio lots")
     st.write("")
-    note("Built for a thoughtful view", "Daily history, clear context, and simple research tools. No API key required.")
+    note("Built for a thoughtful view", "Daily history, clear context, and simple research tools. International research needs no API key; PSX prices need a licensed connection.")
     st.caption("Quotes may be delayed. Watchlists last for this session; export a copy to keep them.")
 
 page.run()

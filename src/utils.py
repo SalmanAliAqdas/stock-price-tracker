@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-TICKER_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$")
+TICKER_PATTERN = re.compile(r"^[A-Z0-9]{1,15}(?:[.-][A-Z0-9]{1,8})?$")
 
 
 def validate_ticker(value: str) -> str:
@@ -22,7 +22,7 @@ def validate_ticker(value: str) -> str:
     return symbol
 
 
-def parse_tickers(value: str, minimum: int = 2, maximum: int = 4) -> list[str]:
+def parse_tickers(value: str, minimum: int = 2, maximum: int = 10) -> list[str]:
     symbols = list(dict.fromkeys(validate_ticker(part) for part in re.split(r"[,\s]+", value.strip()) if part))
     if not minimum <= len(symbols) <= maximum:
         raise ValueError(f"Enter {minimum}–{maximum} different tickers, separated by commas.")
@@ -60,6 +60,20 @@ def currency_label(currency: str | None) -> str:
 
 def format_price(value: Any, currency: str | None) -> str:
     return f"{format_number(value)} {currency_label(currency)}"
+
+
+def format_quote_timestamp(value: Any, exact: bool) -> str:
+    try:
+        timestamp = pd.Timestamp(value)
+    except (ValueError, TypeError, OverflowError):
+        return "Quote timestamp unavailable"
+    if pd.isna(timestamp):
+        return "Quote timestamp unavailable"
+    if exact and timestamp.tzinfo is not None:
+        return timestamp.tz_convert("UTC").strftime("%d %b %Y, %H:%M:%S UTC")
+    if exact:
+        return timestamp.strftime("%d %b %Y, %H:%M:%S") + " · timezone unavailable"
+    return timestamp.strftime("Session date: %d %b %Y") + " · exact quote time unavailable"
 
 
 def validate_dates(start: date, end: date, today: date | None = None) -> None:

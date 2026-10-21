@@ -15,10 +15,11 @@ def prevent_network_and_clear_cache(monkeypatch):
         raise AssertionError("Tests must not contact Yahoo Finance.")
 
     monkeypatch.setattr(data_provider.yf, "Ticker", blocked)
-    for function in (market_data.get_history, market_data.get_quote, market_data.get_profile):
+    monkeypatch.setattr(data_provider.yf, "download", blocked)
+    for function in (market_data.get_history, market_data.get_quote, market_data.get_profile, market_data._get_histories, market_data.search_psx, market_data.get_psx_index):
         function.clear()
     yield
-    for function in (market_data.get_history, market_data.get_quote, market_data.get_profile):
+    for function in (market_data.get_history, market_data.get_quote, market_data.get_profile, market_data._get_histories, market_data.search_psx, market_data.get_psx_index):
         function.clear()
 
 

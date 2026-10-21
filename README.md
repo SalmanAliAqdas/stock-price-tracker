@@ -10,14 +10,27 @@ private session watchlist in a focused dark navy interface.
 | --- | --- |
 | Dashboard | Ticker search, latest available quote, daily change, volume, market capitalization, company profile, adjusted history chart |
 | Stock Analysis | Inclusive date ranges, line and candlestick charts, volume, SMA 20/50, Wilder RSI 14, period high/low and adjusted return, CSV export |
-| Stock Comparison | Two to four symbols, aligned trading dates, percentage performance, start/end adjusted prices, currency labels, CSV export |
-| Watchlist | Add/remove up to 12 stocks, available quotes, JSON backup and restore, per-session isolation |
+| Stock Comparison | Two to ten symbols, aligned trading dates, percentage performance, start/end adjusted prices, currency labels, sorting, CSV export |
+| Watchlist | Up to 100 symbols, search, alphabetical sorting, ten-entry pages, JSON/CSV backups, per-session isolation |
+| Pakistan Stock Exchange | Dedicated KSE-100, stock research, comparison, and independent 100-symbol watchlist; market data awaits a licensed adapter |
+| Portfolio Calculator | Purchase lots, invested cost, estimated value, unrealized P/L, return, allocation, separate currency accounts, entered-holdings CSV export |
 | About & Help | Chart and indicator explanations, price conventions, data limitations, privacy and financial disclaimer |
 
 The interface uses Streamlit navigation, forms, metric cards, accessible controls,
 responsive columns, and interactive Plotly charts. Custom CSS styles only
 application-owned markup; it does not target Streamlit's internal class names.
-No API key or paid service is required.
+International Yahoo research, watchlists, and portfolio cost calculations need no
+API key. PSX prices require licensed data access and a concrete provider adapter;
+they are explicitly unavailable in this release.
+
+## Upgrade scope
+
+The existing dashboard, historical analysis, indicators, downloads, and page URLs
+are preserved. The original three comparison symbols were defaults, not a search
+allowlist: comparison previously allowed four symbols and watchlists allowed 12.
+The current limits are ten comparison companies and 100 entries per watchlist.
+Ticker validation also accepts numeric exchange symbols such as `0700.HK` and
+`7203.T`; provider coverage is still required for every symbol.
 
 ## Requirements
 
@@ -63,12 +76,19 @@ For an application-only installation, use `requirements.txt` instead.
    Stock Analysis. Date ranges are limited to ten years.
 3. Hover over charts to inspect values, drag to zoom, and double-click to reset.
    Switch between adjusted line charts and unadjusted daily candles in Analysis.
-4. Compare two to four unique symbols, separated by commas. Unavailable symbols
+4. Compare two to ten unique symbols, separated by commas. Unavailable symbols
    are excluded with an explanation; at least two usable symbols must remain.
-5. Add stocks to the Watchlist. Export JSON before ending a session, then import
-   the file to restore the list. An import replaces the current list.
+5. Add up to 100 stocks to each market's watchlist. Search saved symbols, sort
+   alphabetically, and browse ten quotes at a time. Export JSON or CSV before
+   ending a session. Imports replace only the matching market's list; older
+   international JSON backups remain supported.
 6. Expand the analysis data table to download historical OHLC, adjusted closes,
    volume, and indicator columns as CSV.
+7. Use Pakistan Stock Exchange for a separate PSX workspace and watchlist. No
+   market prices are shown until a licensed provider adapter is implemented.
+8. Add purchase lots in Portfolio Calculator. Choose the source market and
+   currency explicitly; PSX holdings require PKR. Request estimates when needed
+   and select a currency account to view its totals and cost allocation.
 
 ## Data and financial conventions
 
@@ -130,9 +150,10 @@ closing times.
 
 | Public data | Cache lifetime | Entry limit |
 | --- | --- | --- |
-| Quotes | 120 seconds | 128 |
-| Daily history | 15 minutes | 128 |
-| Company details | 1 hour | 128 |
+| Quotes | 120 seconds | 512 |
+| Daily history, individual symbols | 15 minutes | 512 |
+| Comparison history batches | 15 minutes | 64 |
+| Company details | 1 hour | 256 |
 
 Failure results share these lifetimes to avoid repeatedly contacting a failing
 or rate-limited provider. There is no automatic polling or retry loop. Streamlit
@@ -140,6 +161,18 @@ reruns reuse cached results until expiry. After a provider failure, wait for the
 relevant cache lifetime before trying again; broader Yahoo rate limits may last
 longer. Empty data can mean an unavailable symbol, a nontrading date range, a
 delisting, or a provider issue. The application does not invent replacement data.
+
+Comparison uses yfinance's multi-symbol download interface with worker threads
+disabled. This groups work at the library boundary; Yahoo requests remain
+per-symbol rather than a single HTTP bulk request. Canonical symbol groups reuse
+the same cached batch regardless of input order. Each failed symbol is reported
+independently, with usable symbols retained.
+
+Watchlists fetch quotes only for the ten visible entries. Search and sorting apply
+to saved symbols without requesting the full list. Portfolio quote updates are
+explicit, cover up to ten distinct market/symbol pairs per click, and reuse the
+public quote cache. Ordinary portfolio reruns make no new quote requests. Saved
+estimates remain as-of their displayed timestamps until updated.
 
 ## Watchlist privacy and persistence
 
@@ -150,13 +183,64 @@ personal lists are not.
 
 Reloading the page, losing a session, or restarting the cloud instance may clear
 the list. JSON export is an explicit browser download. Imports are parsed as data
-only, with a versioned schema, validated symbols, a 16 KB limit, and a 12-symbol
-limit. An import never executes file content or uses an uploaded path.
+only, with a versioned schema, validated symbols, a 64 KB limit, and a 100-symbol
+limit. New JSON backups include market identity; CSV uses `market,symbol` columns.
+Backups from another market are rejected. Version 1 JSON files continue to import
+into the international watchlist. An import never executes file content or uses
+an uploaded path. Adding a symbol checks syntax; quote errors report unavailable
+or unverified listings without losing the saved entry.
 
 This release has no authentication or durable user-specific persistence. A shared
 SQLite watchlist would mix unrelated visitors and is intentionally excluded.
 Future persistence requires authenticated user isolation and a reliable external
 store; a local database alone is unsuitable for public multi-user watchlists.
+
+## Portfolio calculations
+
+Portfolio holdings are purchase lots stored in private session state, with up to
+100 lots. Each records a source market, symbol, shares, purchase price, purchase
+date, and currency. Fractional shares are supported. Invalid, non-finite, zero, or
+negative amounts and future purchase dates are rejected. Decimal arithmetic is
+used for monetary calculations.
+
+- Invested cost = shares × purchase price.
+- Current estimated value = shares × an available quote in the same currency.
+- Unrealized P/L = estimated value − invested cost.
+- Return (%) = unrealized P/L / invested cost × 100.
+- Allocation = a company's invested cost / total invested cost in that currency.
+
+USD, PKR, and other currencies are never summed or implicitly converted. `GBp`
+(pence) is distinct from `GBP` (pounds). Unknown currencies, mismatched symbols or
+currencies, invalid quotes, and quotes predating a purchase leave the estimate
+unavailable. If any lot in a currency account lacks a usable quote, overall value,
+P/L, and return remain unavailable; the app separately identifies the priced
+portion. Missing holdings are never valued at zero.
+
+Estimates use the available quote timestamp and exclude fees, taxes, dividends,
+and automatic corporate-action adjustments. Share counts and purchase costs must
+be updated manually after splits or other changes. Purchase dates are recorded
+and checked; historical transaction reconstruction is outside this calculator.
+
+Holdings can be removed or exported as entered-records CSV. No licensed quote data
+is included in that export. There is no portfolio import, login, persistent storage,
+order placement, or brokerage integration in this release. Reloads and cloud
+restarts can reset the session; an export is a record rather than automatic restore.
+
+## Pakistan Stock Exchange data status
+
+No licensed PSX provider is connected. The UI and `PakistanDataProvider` contract
+are ready for integration, and the Pakistan watchlist and purchase-cost calculator
+work independently. Market quotes, directory search results, historical charts,
+comparisons, KSE-100 values, and current PKR valuations remain unavailable until a
+concrete authorized adapter is implemented. No Yahoo coverage or PSX symbol suffix
+is assumed, and no market-data website is scraped.
+
+The investigation covers PSX direct services, Capital Stake's documented
+bearer-token REST API, Mettis Global's API offering, and limitations of assuming
+coverage through general data APIs. Public-display rights, credentials, historical
+and index entitlements, deployment access, and export permissions remain required.
+See [PSX provider research and integration requirements](docs/psx-data-providers.md)
+for primary sources, technical contracts, and Streamlit hosting considerations.
 
 ## Project structure
 
@@ -175,6 +259,10 @@ stock-price-tracker/
 │   ├── indicators.py              # Pure, testable calculations
 │   ├── charts.py                  # Plotly figure builders
 │   ├── dashboard.py               # Dashboard page renderer
+│   ├── comparison_ui.py           # Shared ten-company comparison view
+│   ├── watchlist_ui.py            # Search, sort, pagination, market-specific backups
+│   ├── portfolio.py               # Decimal calculations and currency isolation
+│   ├── psx_provider.py            # Licensed provider contract and unavailable default
 │   ├── ui.py                      # Shared controls and application-owned CSS
 │   ├── utils.py                   # Validation, formatting, CSV
 │   └── watchlist.py               # Pure list operations and JSON validation
@@ -182,7 +270,10 @@ stock-price-tracker/
 │   ├── 1_Stock_Analysis.py
 │   ├── 2_Stock_Comparison.py
 │   ├── 3_Watchlist.py
-│   └── 4_About.py
+│   ├── 4_About.py
+│   ├── 5_Pakistan_Stock_Exchange.py
+│   └── 6_Portfolio.py
+├── docs/psx-data-providers.md      # PSX provider investigation and integration requirements
 ├── scripts/
 │   ├── check_market_data.py       # Explicit, optional online integration check
 │   └── check_startup.py           # Temporary local HTTP readiness check
@@ -192,7 +283,12 @@ stock-price-tracker/
     ├── test_utils.py
     ├── test_watchlist.py
     ├── test_data_provider.py
-    └── test_app.py
+    ├── test_app.py
+    ├── test_batch_data.py
+    ├── test_expanded_watchlists.py
+    ├── test_portfolio.py
+    ├── test_psx_provider.py
+    └── test_upgrade_app.py
 ```
 
 The extra `market_data.py` module keeps UI caching outside the replaceable provider
@@ -212,8 +308,14 @@ The pytest suite uses synthetic fixtures confined to tests and blocks Yahoo tick
 creation unless explicitly mocked. It requires no internet access. Tests cover
 calculation reference values and edge cases, date alignment, missing adjustment
 data, ticker validation, timestamps, outages/rate limits, cache reuse, watchlist
-isolation and JSON validation, all five pages, and form/chart interactions through
+isolation and JSON/CSV validation, all seven pages, and form/chart interactions through
 Streamlit's native `AppTest` harness.
+
+Upgrade coverage includes ten distinct comparison series, batch cache reuse,
+100-symbol backup round trips, watchlist pagination request counts, legacy backups,
+market separation, exact monetary calculations, missing-quote and currency checks,
+PSX unavailable states, and the PSX interface exercised with a test-only provider.
+Synthetic fixtures are confined to tests and never offered as real market data.
 
 The startup check launches a temporary server on a free localhost port, verifies
 the health endpoint and application HTML both return HTTP 200, then stops its
@@ -225,7 +327,7 @@ An optional integration check makes a small number of real Yahoo requests:
 .\.venv\Scripts\python.exe scripts/check_market_data.py
 ```
 
-This checks AAPL quotes, AAPL/MSFT adjusted history and alignment, optional company
+This checks AAPL quotes, batched AAPL/MSFT adjusted history and alignment, optional company
 details, and an unavailable-symbol response.
 It is separate from pytest because network access and upstream availability are
 not deterministic. Its failure can indicate a rate limit or network issue.
@@ -255,7 +357,9 @@ local absolute path, database file, or secret is needed at runtime.
 3. Set the main file path to `app.py`.
 4. In Advanced settings, choose Python **3.13**, matching the verified local
    environment. `.python-version` does not replace the cloud version selection.
-5. Deploy and inspect Dashboard, Analysis, Comparison, Watchlist, and About.
+5. Deploy and inspect all seven pages. Confirm ten-symbol comparisons, large-list
+   pagination, backup import, separate watchlists, portfolio currencies, and the
+   explicit PSX unavailable state.
    Test Yahoo access from the hosted app and check its logs if data is unavailable.
 
 See the official [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).

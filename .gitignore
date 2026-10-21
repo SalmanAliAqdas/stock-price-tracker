@@ -27,3 +27,6 @@ dist/
 .DS_Store
 Thumbs.db
 watchlist*.json
+watchlist*.csv
+portfolio*.csv
+portfolio*.json

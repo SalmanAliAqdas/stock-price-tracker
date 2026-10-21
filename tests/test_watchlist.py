@@ -29,7 +29,7 @@ def test_lists_are_isolated():
 def test_export_import_roundtrip():
     symbols = ["AAPL", "BRK-B", "VOD.L"]
     assert import_watchlist(export_watchlist(symbols).encode()) == symbols
-    assert json.loads(export_watchlist([])) == {"version": 1, "symbols": []}
+    assert json.loads(export_watchlist([])) == {"version": 2, "market": "yahoo", "symbols": []}
 
 
 @pytest.mark.parametrize("payload", [b"not json", b"\xff", "[]", '{"version": 2, "symbols": []}', '{"version": true, "symbols": []}', '{"version": 1, "symbols": "AAPL"}', '{"version": 1, "symbols": ["../../file"]}', '{"version": 1, "symbols": [1]}'])

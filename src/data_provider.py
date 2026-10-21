@@ -36,6 +36,7 @@ class Quote:
     timestamp_is_exact: bool
     source_label: str
     exchange: str | None = None
+    data_source: str = "Yahoo Finance via yfinance"
 
 
 class MarketDataProvider(Protocol):
@@ -105,6 +106,40 @@ class YahooFinanceProvider:
         if data.empty:
             raise MarketDataError(f"No price history was returned for {symbol} in this range. Check the Yahoo ticker or try a wider range; the provider may also be unavailable.")
         return data
+
+    def history_many(self, symbols: tuple[str, ...], start: date, end: date) -> dict[str, pd.DataFrame | MarketDataError]:
+        """Multi-symbol library download; upstream requests remain per-symbol.
+
+        Worker threads are disabled to avoid a concurrent burst on cloud IPs.
+        """
+        symbols = tuple(dict.fromkeys(validate_ticker(symbol) for symbol in symbols))
+        if not 1 <= len(symbols) <= 10:
+            raise ValueError("Request between one and ten symbols at a time.")
+        validate_dates(start, end)
+        try:
+            frame = yf.download(list(symbols), start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
+                                interval="1d", auto_adjust=False, actions=False, group_by="ticker",
+                                threads=False, progress=False, timeout=12)
+        except YFRateLimitError as exc:
+            raise MarketDataError("Yahoo Finance is rate limiting requests. Wait a few minutes before trying again.") from exc
+        except Exception as exc:
+            raise MarketDataError("Comparison history is temporarily unavailable. Please try again later.") from exc
+        results = {}
+        for symbol in symbols:
+            try:
+                if isinstance(frame.columns, pd.MultiIndex):
+                    levels = [level for level in range(frame.columns.nlevels) if symbol in frame.columns.get_level_values(level)]
+                    raw = frame.xs(symbol, level=levels[0], axis=1) if levels else pd.DataFrame()
+                else:
+                    raw = frame if len(symbols) == 1 else pd.DataFrame()
+                data = clean_history(raw)
+                data = data.loc[(data.index.date >= start) & (data.index.date <= end)]
+                if data.empty:
+                    raise MarketDataError("Empty history")
+                results[symbol] = data
+            except (MarketDataError, ValueError, TypeError):
+                results[symbol] = MarketDataError(f"History is unavailable for {symbol}. Check the symbol or range; the provider may also be rate limited.")
+        return results
 
     def quote(self, symbol: str) -> Quote:
         symbol = validate_ticker(symbol)

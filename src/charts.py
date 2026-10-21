@@ -7,7 +7,8 @@ from html import escape
 import pandas as pd
 import plotly.graph_objects as go
 
-COLORS = ["#5EE0B5", "#7DA9FF", "#BEA0FF", "#F5C77E"]
+COLORS = ["#5EE0B5", "#7DA9FF", "#BEA0FF", "#F5C77E", "#FF91B2",
+          "#71DAEF", "#E0DC8D", "#C0CBE0", "#FFAD7D", "#BCDA92"]
 GREEN = COLORS[0]
 RED = "#FF7C91"
 
@@ -18,20 +19,22 @@ def _style(figure: go.Figure, ylabel: str, height: int = 400) -> go.Figure:
         plot_bgcolor="rgba(0,0,0,0)", height=height,
         font=dict(family="Arial, sans-serif", color="#B7C6DB", size=12),
         margin=dict(l=8, r=18, t=28, b=10), hovermode="x unified",
-        legend=dict(orientation="h", y=1.12, x=0),
+        autosize=True,
+        legend=dict(orientation="h", y=-0.18, x=0, xanchor="left", yanchor="top"),
         xaxis=dict(showgrid=False, title=None, zeroline=False),
         yaxis=dict(title=ylabel, gridcolor="#1D2B40", zeroline=False, side="right"),
     )
     return figure
 
 
-def price_chart(frame: pd.DataFrame, currency: str, averages: bool = False) -> go.Figure:
+def price_chart(frame: pd.DataFrame, currency: str, averages: bool = False, adjusted: bool = True) -> go.Figure:
     figure = go.Figure()
+    label = "Adjusted close" if adjusted else "Unadjusted close"
     figure.add_trace(go.Scatter(
-        x=frame.index, y=frame["Adj Close"], name="Adjusted close",
+        x=frame.index, y=frame["Adj Close" if adjusted else "Close"], name=label,
         mode="lines", line=dict(color=GREEN, width=2.6),
         fill="tozeroy", fillcolor="rgba(94,224,181,0.055)",
-        hovertemplate="%{y:,.2f}<extra>Adjusted close</extra>",
+        hovertemplate="%{y:,.2f}<extra>" + label + "</extra>",
     ))
     if averages:
         for column, color in (("SMA 20", COLORS[1]), ("SMA 50", COLORS[3])):

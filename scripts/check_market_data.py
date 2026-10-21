@@ -24,8 +24,11 @@ def main() -> int:
         if history["Adj Close"].dropna().empty:
             print("FAIL: Adjusted close values were not returned.")
             return 1
-        other = provider.history("MSFT", end - timedelta(days=45), end)
-        comparison = normalize_returns({"AAPL": history["Adj Close"], "MSFT": other["Adj Close"]})
+        batch = provider.history_many(("AAPL", "MSFT"), end - timedelta(days=45), end)
+        if any(isinstance(value, MarketDataError) for value in batch.values()):
+            print("FAIL: One or more comparison histories were unavailable.")
+            return 1
+        comparison = normalize_returns({symbol: frame["Adj Close"] for symbol, frame in batch.items()})
         if len(comparison) < 2 or not comparison.iloc[0].eq(0).all():
             print("FAIL: Real-data comparison did not produce a common zero baseline.")
             return 1
