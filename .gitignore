@@ -1,0 +1,29 @@
+# Python and development environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.codex/
+.agents/
+.vscode/
+.idea/
+
+# Local data and operating system files
+*.db
+*.sqlite*
+*.log
+.DS_Store
+Thumbs.db
+watchlist*.json
